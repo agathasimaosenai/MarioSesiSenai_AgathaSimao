@@ -1,247 +1,291 @@
- document.addEventListener('DOMContentLoaded', () => { 
-//Elementos do jogo
+/*Super Mario Jump - Lógica do Jogo e Integração com Ranking MySQL (Laragon)*/
+
+document.addEventListener('DOMContentLoaded', () => {
+   // Elementos do Jogo
     const mario = document.querySelector('.mario');
     const pipe = document.querySelector('.pipe');
-    const gameBoard = document.getElementById('.game-board');
-    const hudPlayerName = document.getElementById('.hud-player-name');
-    const scoreDisplay = document.getElementById('.score-display');
-    const jumpTip = document.getElementById('.jump-tip');
-    const startModal = document.getElementById('.start-modal');
-    const startForm = document.getElementById('.start-form');
-    const playerInput = document.getElementById('.player-input');
- });
+    const gameBoard = document.getElementById('game-board');
+    const hudPlayerName = document.getElementById('hud-player-name');
+    const scoreDisplay = document.getElementById('score-display');
+    const jumpTip = document.getElementById('jump-tip');
 
-// modais e telas
-   const startModal = document.getElementById('star-modal');
-   const startForm = document.getElementById('start-form');
-   const playerInput = document.getElementById('player-input');
-   const btnViewRanking = document.getElementById('btn-view-ranking');
+// Modais e Telas
+    const startModal = document.getElementById('start-modal');
+    const startForm = document.getElementById('start-form');
+    const playerInput = document.getElementById('player-input');
+    const btnViewRanking = document.getElementById('btn-view-ranking');
 
-   const gameroverModal = document.getElementById('gameover-modal');
-   const finalScoreValue = document.getElementById('final-score-values');
-   const saveStatusMsg = document.getElementById('ranking-body');
-   const btnRestart = document.getElementById('btn-restart');
-   const btnChargePlayer = document.getElementById('btn-charge-player');
+    const gameoverModal = document.getElementById('gameover-modal');
+    const finalScoreValue = document.getElementById('final-score-value');
+    const saveStatusMsg = document.getElementById('save-status-msg');
+    const rankingBody = document.getElementById('ranking-body');
+    const btnRestart = document.getElementById('btn-restart');
+    const btnChangePlayer = document.getElementById('btn-change-player');
 
-// variável de estado
-   let currentPlayer = '';
-   let score = 0; 
-   let isPlayer = false;
-   let gameLoop = null;
-   let scoreLoop = null;
+// Variáveis de Estado
+    let currentPlayer = '';
+    let score = 0;
+    let isPlaying = false;
+    let gameLoop = null;
+    let scoreLoop = null;
+
+// Recupera último nome utilizado caso exista
+    const savedName = localStorage.getItem('mario_jump_player');
+    if (savedName && playerInput) {
+        playerInput.value = savedName;
+    }
+
+/*Inicia uma nova rodada*/
+    function startGame() {
+        // Limpa loops anteriores se existirem
+        clearInterval(gameLoop);
+        clearInterval(scoreLoop);
+
+// Reseta posições e visuais
+        resetElements();
+
+        isPlaying = true;
+        score = 0;
+        scoreDisplay.textContent = '0';
+        hudPlayerName.textContent = currentPlayer || 'Jogador';
+
+// Ativa animações CSS do jogo
+        gameBoard.classList.add('running');
+
+// Loop de pontuação progressiva (1 ponto a cada 100ms)
+        scoreLoop = setInterval(() => {
+            if (isPlaying) {
+                score += 1;
+                scoreDisplay.textContent = score;
+            }
+        }, 100);
+
+// Loop de colisão
+        gameLoop = setInterval(checkCollision, 10);
+    }
 
 
-//recuperação do ultimo nome de usuario 
-   const salvedName = localStorage.getItem('mario_jump_player');
-   if (savedName && playerInput) {
-      playerInput.value = savedName;
-   }
+    function resetElements() {
+        // Reseta cano
+        pipe.style.animation = '';
+        pipe.style.left = '';
 
-//limpei loops anteriores se existirem 
-   function startGame (){
-      clearInterval(gameLoop);
-      clearInterval(scoreLoop);
+// Reseta Mario
+        mario.src = 'assets/mario.gif';
+        mario.style.animation = '';
+        mario.style.bottom = '0px';
+        mario.style.width = '';
+        mario.style.marginLeft = '';
+        mario.classList.remove('jump');
 
-// resetei as posições visuais 
-      resetElements();
+        if (jumpTip) {
+            jumpTip.style.opacity = '1';
+        }
+    }
 
-      isPlaying = true; 
-      score = 0; 
-      scoreDisplay.textContent = '0';
-      hudPlayerName.textContent =  currentPlayer || 'Jogador';
+    function jump() {
+        if (!isPlaying) return;
+        if (mario.classList.contains('jump')) return;
 
-// ativa as animações css do jogo
-      gameBoard.classList.add('running');
+        mario.classList.add('jump');
 
-// loop de pontuação progressiva (1 ponto a cada 100ms)
-      scoreLoop = setInterval (() => {
-         if(isPlayer){
-            score += 1
-            scoreDisplay.textContent = score;
-         }
-      }, 100);
-// loop de colisão
-      gameLoop = setInterval(checkCollision, 10);
-   }
+        if (jumpTip) {
+            jumpTip.style.opacity = '0';
+        }
 
-// resetar os estilos e posições de cario e do cano(obstáculo)
-   function resetElements(){
-// reseta o cano (obstaculo)
-      pipe.style.animation = '';
-      pipe.style.left = '';
+        setTimeout(() => {
+            mario.classList.remove('jump');
+        }, 500);
+    }
 
-// reset do mario 
-      mario.src = '../assets/mario.gif'; // ele saiu da pasta js e foi pra pasta assets
-      mario.style.animation = '';
-      mario.style.bottom = '0px';
-      mario.style.width = '';
-      mario.style.marginLeft = '';
-      mario.classList.remove('jump');
-      if (jumpTip){
-      jumpTip.style.opacity = '1';
-      }
-   }
+    function checkCollision() {
+        if (!isPlaying) return;
 
-// executa o pulo do mario //!= diferente
-   function jump (){
-      if(!isPlaying) return
-      if (mario.classList.remove('jump')) return; 
+        const pipePosition = pipe.offsetLeft;
+        const marioPosition = +window.getComputedStyle(mario).bottom.replace('px', '');
 
-      mario.classList.add('jump');
+// Tolerância de colisão: quando o cano está na faixa de contato com o Mario
+        if (pipePosition <= 120 && pipePosition > 0 && marioPosition < 80) {
+            triggerGameOver(pipePosition, marioPosition);
+        }
+    }
 
-      if(jumpTip){
-         jumpTip.style.opacity = '0';
-      }
+    function triggerGameOver(pipePosition, marioPosition) {
+        isPlaying = false;
+        clearInterval(gameLoop);
+        clearInterval(scoreLoop);
 
-      setTimeout(() => {
-         mario.classList.remove('jump');
-      }, 500);
-   }
+        
+        gameBoard.classList.remove('running');
 
-// verificar a colisão entre o mario e o cano(obstaculo)
-      function checkCollision(){
-         if (!isPlaying) return;
+        
+        pipe.style.animation = 'none';
+        pipe.style.left = `${pipePosition}px`;
 
-         const pipePosition = pipe.offsetLeft; 
-         const marioPosition = +window.getComputedStyle(mario).bottom.replace('px', '');
+// Congela o Mario na altura exata e muda para a imagem de Game Over
+        mario.style.animation = 'none';
+        mario.style.bottom = `${marioPosition}px`;
+        mario.src = 'assets/game-over.png';
+        mario.style.width = '75px';
+        mario.style.marginLeft = '50px';
 
-// tolerância de colisão: quando o cano está na faixa de contato com o mario
-         if(pipePosition <= 120 && pipePosition > 0 && marioPosition < 80){
-            triggerGamerOver(pipePosition, marioPosition);
-         }
-      }
-// tratar o game
-      function triggerGamerOver(pipePosition, marioPosition){
-         isPlayer = false;
-         clearInterval(gameLoop);
-         clearInterval(scoreLoop);
+// Atualiza modal de Game Over
+        finalScoreValue.textContent = score;
+        saveStatusMsg.textContent = 'Salvando pontuação no banco...';
+        saveStatusMsg.style.color = '#ffcc00';
 
-// remover a classe running para parar as animações
-         gameBoard.classList.remove('running');
+// Abre modal de Game Over
+        gameoverModal.classList.add('active');
 
-// congela o cano na posição exata da colição 
-         pipe.style.animation = 'none';
-         pipe.style.left = `${pipePosition}px`;
+// Salva a pontuação no banco MySQL via PHP
+        saveScore(currentPlayer, score);
+    }
 
-// congela o mario na altura exata e muda para a imagme gamer over]
-         mario.style.animation = 'none';
-         mario.style.left = `${marioPosition}px`;
-         mario.src = '../assets/gamer-over.png';
-         mario.style.width = '75px';
-         mario.style.marginLeft = '50px'; 
 
-//atualização do modal de gamer over
-         finalScoreValue.textContent = score;
-         saveStatusMsg.textContent = 'Salvando a pontuação no banco...';
-         saveStatusMsg.style.color = '#ffcc00'
-         
-         gameroverModal.classList.add('active');
-
-// salva a pontuação no banco com a função criada chamada saveScore
-         saveScore(currentPlayer, score);
-      }
-      function saveScore(playerName, finalScore){
-         fetch('salvar_rancking.php',{
-            method: 'post',
-            headers:{
-               'content-Type': 'aplicatiom/json'
+    function saveScore(playerName, finalScore) {
+        fetch('salvar_ranking.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-               nome:playerNome,
-               pontos: finalScore
+                nome: playerName,
+                pontos: finalScore
             })
-         })
-         .then(res => res.json())
-         .then(data => {
-            if(data.status === 'success'){
-               saveStatusMsg.textContent = 'pontuação registrada no banco!';
-               saveStatusMsg.style.color = '#10b981';
-               if(data.ranking){
-                  renderRanking(data.ranking, playerName, finalScore);
-               }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                saveStatusMsg.textContent = 'Pontuação registrada no banco!';
+                saveStatusMsg.style.color = '#10b981';
+                if (data.ranking) {
+                    renderRanking(data.ranking, playerName, finalScore);
+                }
             } else {
-               saveStatusMsg.textContent = (data.massage || 'Erro ao registar');
-               saveStatusMsg.style.color = '#ef4444'; 
+                saveStatusMsg.textContent = '⚠️ ' + (data.message || 'Erro ao registrar.');
+                saveStatusMsg.style.color = '#ef4444';
             }
-         })
-         .catch(err => {
-            consolo.error('Error na reequisição', err);
-            saveStatusMsg.textContent = 'Erro ao conectar ao servidor';
+        })
+        .catch(err => {
+            console.error('Erro na requisição:', err);
+            saveStatusMsg.textContent = '⚠️ Erro ao conectar ao servidor Laragon.';
             saveStatusMsg.style.color = '#ef4444';
-         });
-      }
+        });
+    }
 
-// busca no rancking atualizado do banco
-      function fetchRancking(){
-         fetch('obter_rancking.php')
-         .then(res => res.json())
-         .then(data => {
-            if (data.status === 'success' && data.rancking){
-               renderRanking(data.rancking);
-            }
-         })
-         .catch(arr => console.error('Erro ao buscar o ranking', err));
-      }
-   
-// vamos atualizar a tabela do rancking no HTML
-      function renderRanking(list, highlighName = null, highlighScore = null){
-         if(!rankingBody) return;
-         rankingBody.innerHTML = '';
-         if(!list || list.length === 0){
-            rankingBody.innerHTML = `<tr><td colspan="3" class="loading-cell">Nenhuma pontuação gravada ainda.</td></tr>`;
+/* Busca o ranking atualizado no banco*/
+    function fetchRanking() {
+        fetch('obter_ranking.php')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success' && data.ranking) {
+                    renderRanking(data.ranking);
+                }
+            })
+            .catch(err => console.error('Erro ao buscar ranking:', err));
+    }
+
+/*Atualiza a tabela HTML do ranking*/
+    function renderRanking(list, highlightName = null, highlightScore = null) {
+        if (!rankingBody) return;
+        rankingBody.innerHTML = '';
+
+        if (!list || list.length === 0) {
+            rankingBody.innerHTML = '<tr><td colspan="3" class="loading-cell">Nenhuma pontuação gravada ainda. Jogue para ser o 1º!</td></tr>';
             return;
-         }
-         let highlightted = false; 
+        }
 
-         list.forEach((item, index) => {
+        let highlighted = false;
+
+        list.forEach((item, index) => {
             const tr = document.createElement('tr');
 
-            if(!highlightted && highlightName && item.nome === highlightName && parseInt(item.pontos, 10) === highlightScore){
-                tr.classList.add('highlightCurrent');
-                highlightted = true;
+            // Destaca a pontuação atual recém-salva se coincidir
+            if (!highlighted && highlightName && item.nome === highlightName && parseInt(item.pontos, 10) === highlightScore) {
+                tr.classList.add('highlight-current');
+                highlighted = true;
             }
+
             let medal = `${index + 1}º`;
             if (index === 0) medal = '🥇 1º';
             else if (index === 1) medal = '🥈 2º';
-            else if (index === 2 ) medal = '🥉 3º';
+            else if (index === 2) medal = '🥉 3º';
 
             tr.innerHTML = `
-               <td class="ranking-pos">${medal}</td> 
-               <td><strong>${escapeHTML(item.nome)}</strong></td>
-               <td>${parseInt(item.pontos, 10)}pts</td>
+                <td class="ranking-pos">${medal}</td>
+                <td><strong>${escapeHtml(item.nome)}</strong></td>
+                <td>${parseInt(item.pontos, 10)} pts</td>
             `;
 
             rankingBody.appendChild(tr);
+        });
+    }
 
-         })
-   }
-
-      function escapeHTML(str){
-         if(!str) return '';
-         return String(str)
+/* Função auxiliar para sanitizar strings no HTML*/
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;')
-      }
+            .replace(/'/g, '&#039;');
+    }
 
-// eventos de controle e interface do jogo
-// INICIAR O JOGO (FORMULARIO)
-   startForm.addEventListener('submit', (e) => {
-      e.preventDefault(); // impede o recarregamento da pagina
+// Submit do Formulário de Início (INICIAR JOGO)
+    startForm.addEventListener('submit', (e) => {
+        e.preventDefault(); // Impede o recarregamento da página
 
-      const nameValues = playerInput.value.trim(); // o trim não deixa você colocar espaço antes ou depois do nome
-      if(!nameValues){
-         playerInput.focus();
-         return; 
-      }
-      currentPlayer = nameValues
-      localStorage.setItem('mario_jump_player', currentPlayer);
+        const nameValue = playerInput.value.trim();
+        if (!nameValue) {
+            playerInput.focus();
+            return;
+        }
 
-// fecha a tela e começa o jogo  depois de preencher os dados
-      startModal.classList.remove('active');
-      startGame();
-   }); 
+        currentPlayer = nameValue;
+        localStorage.setItem('mario_jump_player', currentPlayer);
 
-// botão ver rancking 
+        // Fecha tela de início e começa o jogo
+        startModal.classList.remove('active');
+        startGame();
+    });
+
+// Botão "VER RANKING" na tela inicial
+    btnViewRanking.addEventListener('click', () => {
+        fetchRanking();
+        finalScoreValue.textContent = '---';
+        saveStatusMsg.textContent = '';
+        startModal.classList.remove('active');
+        gameoverModal.classList.add('active');
+    });
+
+// Botão "JOGAR NOVAMENTE" no Game Over
+    btnRestart.addEventListener('click', () => {
+        gameoverModal.classList.remove('active');
+        if (!currentPlayer) {
+            startModal.classList.add('active');
+            playerInput.focus();
+        } else {
+            startGame();
+        }
+    });
+
+// 4. Botão "TROCAR JOGADOR" no Game Over
+    btnChangePlayer.addEventListener('click', () => {
+        gameoverModal.classList.remove('active');
+        resetElements();
+        startModal.classList.add('active');
+        playerInput.value = '';
+        playerInput.focus();
+    });
+
+// 5. Controle do Pulo por Teclado (Espaço ou Seta para Cima)
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' || e.key === ' ' || e.code === 'ArrowUp') {
+            if (isPlaying) {
+                e.preventDefault();
+                jump();
+            }
+        }
+    });
+});
